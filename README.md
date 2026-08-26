@@ -96,3 +96,7 @@ streamlit run app/real_time_dashboard.py
 > Как получить модель: при свежем `clone` весов модели в `checkpoints/` нет.
 > Нужно либо запустить обучение из ноутбука, либо (позже) подтянуть готовый
 > артефакт. Точный способ будет описан здесь на этапе 10.
+
+colab.research.google.com
+overall accuracy 0.850, F1-macro 0.841; en 0.862/0.851; ru 0.837/0.830.
+
