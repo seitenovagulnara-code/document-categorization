@@ -130,8 +130,12 @@ def train(splits, epochs=EPOCHS, batch_size=BATCH_SIZE, lr=LEARNING_RATE):
 
 def load_trained():
     """Загрузить дообученную модель и токенизатор из checkpoints/ (для инференса)."""
+    import torch
     from transformers import AutoModelForSequenceClassification, AutoTokenizer
     model = AutoModelForSequenceClassification.from_pretrained(str(CHECKPOINT_DIR))
+    device = "cuda" if torch.cuda.is_available() else "cpu"   # перенос на GPU, если есть
+    model.to(device)
+    model.eval()
     tokenizer = AutoTokenizer.from_pretrained(str(CHECKPOINT_DIR))
     return model, tokenizer
 
@@ -177,4 +181,3 @@ def evaluate_transformer(model, tokenizer, splits, languages=("en", "ru")):
         "n": len(all_true),
     }
     return out
-    
