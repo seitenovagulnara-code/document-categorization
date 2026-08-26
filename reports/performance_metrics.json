@@ -1,0 +1,13 @@
+{
+  "classification_accuracy": 0.8979,
+  "f1_score_macro": 0.8903,
+  "processing_speed_docs_per_sec": null,
+  "languages_supported": [
+    "en",
+    "ru"
+  ],
+  "per_language_accuracy": {
+    "en": 0.9055,
+    "ru": 0.8904
+  }
+}
