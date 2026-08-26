@@ -11,7 +11,7 @@
 from pathlib import Path
 
 MODEL_NAME = "distilbert-base-multilingual-cased"
-MAX_LENGTH = 256          # обрезка длины (скорость; attention квадратичен по длине)
+MAX_LENGTH = 64          # обрезка длины (скорость; attention квадратичен по длине)
 LEARNING_RATE = 3e-5      # условие: 2e-5 … 5e-5
 EPOCHS = 5                # условие: минимум 5 эпох
 
