@@ -77,6 +77,24 @@ class RealTimePipeline:
             "batch_size": batch_size,
         }
 
+    def benchmark_full(self, texts, langs=None, batch_size=64):
+        """
+        Замер ПОЛНОГО пайплайна: классификация (BERT, батчами) + тегирование
+        (spaCy, по одному). Ближе к реальной скорости обработки, чем только
+        классификация. Обычно заметно ниже — spaCy работает на CPU.
+        """
+        texts = list(texts)
+        self.process(texts[:batch_size], batch_size=batch_size)   # разогрев
+        t0 = time.perf_counter()
+        self.process(texts, langs=langs, batch_size=batch_size)
+        dt = time.perf_counter() - t0
+        return {
+            "n": len(texts),
+            "seconds": round(dt, 3),
+            "docs_per_sec": round(len(texts) / dt, 1),
+            "batch_size": batch_size,
+        }
+
 
 def build_pipeline():
     """Загрузить дообученную модель + тегировщик и собрать пайплайн."""
