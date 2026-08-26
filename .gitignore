@@ -1,0 +1,16 @@
+# Модели (тяжёлые, воспроизводятся кодом; храним отдельно)
+models/checkpoints/*.h5
+models/checkpoints/*.joblib
+models/checkpoints/*.bin
+models/checkpoints/*/
+
+# Данные (качаются кодом)
+data/raw_documents/*
+data/processed_data/*
+!**/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
