@@ -2,10 +2,17 @@
 Этап 7 — Тегирование документов (spaCy + NER).
 
 Отдельный движок, НЕ связанный с классификатором. Для каждого документа:
-извлекает именованные сущности (NER) и превращает их в теги.
-Модели spaCy зависят от языка -> сначала определяем язык, потом грузим модель.
+  1) определяет язык (или берёт переданный),
+  2) грузит нужную модель spaCy,
+  3) извлекает именованные сущности (NER) — имена, места, даты, организации,
+  4) добавляет ключевые слова (существительные/имена собственные),
+  5) при наличии — учитывает КАТЕГОРИЮ документа как контекст.
 
-Заготовка: интерфейс класса. Логику наполняем на этапе 7.
+Тексты MASSIVE короткие, поэтому сущностей мало — гибрид (NER + ключевые слова
++ категория) даёт осмысленные теги, а не пустоту. Это и есть context-aware
+tagging: категория помогает уточнить теги.
+
+spaCy импортируется внутри методов, чтобы модуль грузился без него.
 """
 
 # Модель spaCy под каждый язык (ставятся через `python -m spacy download ...`)
@@ -23,18 +30,68 @@ class DocumentTagger:
 
     def _get_nlp(self, lang: str):
         """Лениво загрузить и закэшировать модель spaCy для языка."""
-        # TODO (этап 7): spacy.load(SPACY_MODELS[lang]) с кэшированием
-        raise NotImplementedError
+        import spacy
+        if lang not in SPACY_MODELS:
+            lang = "en"                      # запасной вариант для неизвестного языка
+        if lang not in self._nlp:
+            self._nlp[lang] = spacy.load(SPACY_MODELS[lang])
+        return self._nlp[lang]
 
     def extract_entities(self, text: str, lang: str):
-        """Вернуть сущности [(text, label), ...] через doc.ents."""
-        # TODO (этап 7)
-        raise NotImplementedError
+        """Вернуть именованные сущности [(text, label), ...] через doc.ents."""
+        nlp = self._get_nlp(lang)
+        doc = nlp(text)
+        return [(ent.text, ent.label_) for ent in doc.ents]
 
-    def generate_tags(self, text: str, lang: str, category: str = None):
+    def keywords(self, text: str, lang: str, max_k: int = 5):
+        """Ключевые слова: существительные и имена собственные (без стоп-слов), по лемме."""
+        nlp = self._get_nlp(lang)
+        doc = nlp(text)
+        seen, out = set(), []
+        for tok in doc:
+            if tok.pos_ in ("NOUN", "PROPN") and tok.is_alpha and not tok.is_stop:
+                lemma = tok.lemma_.lower()
+                if lemma not in seen:
+                    seen.add(lemma)
+                    out.append(lemma)
+        return out[:max_k]
+
+    def generate_tags(self, text: str, lang: str = None, category: str = None):
         """
-        Собрать теги из сущностей (+ по желанию учесть категорию как контекст).
-        Контекстно-зависимое тегирование: категория помогает уточнить теги.
+        Собрать теги из сущностей + ключевых слов (+ категория как контекст).
+        Если lang не задан — определяем автоматически.
+
+        Возвращает dict:
+          {
+            "entities": [{"text":..., "type":...}, ...],
+            "keywords": [...],
+            "category": <если передана>,
+            "tags": [...]                  # плоский список без дублей
+          }
         """
-        # TODO (этап 7): сущности -> теги; взвесить по важности
-        raise NotImplementedError
+        if lang is None:
+            from utils.text_preprocessing import detect_language
+            lang = detect_language(text)
+
+        ents = self.extract_entities(text, lang)
+        kws = self.keywords(text, lang)
+
+        # убрать из ключевых слов то, что уже попало в сущности (без дублей вроде
+        # 'Microsoft' + 'microsoft')
+        ent_words = set()
+        for t, _ in ents:
+            for w in t.lower().split():
+                ent_words.add(w)
+        kws = [k for k in kws if k not in ent_words]
+
+        result = {
+            "entities": [{"text": t, "type": lbl} for t, lbl in ents],
+            "keywords": kws,
+        }
+        if category:
+            result["category"] = category
+
+        flat = ([category] if category else []) + [t for t, _ in ents] + kws
+        result["tags"] = list(dict.fromkeys(flat))   # убрать дубли, сохранив порядок
+        return result
+        
