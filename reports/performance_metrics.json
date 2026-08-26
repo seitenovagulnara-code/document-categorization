@@ -1,7 +1,8 @@
 {
   "classification_accuracy": 0.8979,
   "f1_score_macro": 0.8903,
-  "processing_speed_docs_per_sec": null,
+  "processing_speed_docs_per_sec": 1384.1,
+  "full_pipeline_docs_per_sec": 74.6,
   "languages_supported": [
     "en",
     "ru"
