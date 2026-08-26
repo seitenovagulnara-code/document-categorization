@@ -5,6 +5,7 @@ models/checkpoints/*.bin
 models/checkpoints/tokenizer*
 models/checkpoints/vocab*
 models/checkpoints/special_tokens*
+models/checkpoints/*.safetensors
 
 # Данные (качаются кодом)
 data/raw_documents/*
