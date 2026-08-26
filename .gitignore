@@ -2,7 +2,9 @@
 models/checkpoints/*.h5
 models/checkpoints/*.joblib
 models/checkpoints/*.bin
-models/checkpoints/*/
+models/checkpoints/tokenizer*
+models/checkpoints/vocab*
+models/checkpoints/special_tokens*
 
 # Данные (качаются кодом)
 data/raw_documents/*
