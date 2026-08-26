@@ -21,6 +21,11 @@ import re
 # завершающий пробел (иначе склеится со следующим словом).
 _ABBREV = re.compile(r"\b[a-zA-Zа-яА-Я]\.(?:\s*[a-zA-Zа-яА-Я]\.)+")
 
+# Кириллица -> русский. Надёжнее статистических определителей на КОРОТКИХ текстах
+# (langdetect на фразе из 5 слов часто ошибается). У нас всего 2 языка (en/ru),
+# поэтому проверка алфавита точна и быстра.
+_CYRILLIC = re.compile(r"[а-яА-ЯёЁ]")
+
 
 def _join_abbrev(match: str) -> str:
     letters = re.findall(r"[a-zA-Zа-яА-Я]", match.group(0))
@@ -43,14 +48,17 @@ def basic_clean(text: str) -> str:
 
 def detect_language(text: str) -> str:
     """
-    Определить язык текста ('en' / 'ru' / ...). Нужно для маршрутизации
-    моделей spaCy в тегировщике (этап 7).
+    Определить язык ('ru' / 'en') по алфавиту: есть кириллица -> 'ru', иначе 'en'.
+    Нужно для маршрутизации моделей spaCy в тегировщике (этап 7).
+
+    Почему по алфавиту, а не langdetect: тексты короткие (медиана ~6 слов),
+    а статистические определители на такой длине часто ошибаются
+    (напр. англ. фразу принимают за африкаанс). У нас 2 языка — проверка
+    алфавита точна и быстра.
     """
-    from langdetect import detect  # импорт внутри — модуль грузится без langdetect
-    try:
-        return detect(text)
-    except Exception:
-        return "unknown"
+    if not isinstance(text, str) or not text.strip():
+        return "en"
+    return "ru" if _CYRILLIC.search(text) else "en"
 
 
 def classic_preprocess(text: str, lang: str = None) -> str:
@@ -59,6 +67,8 @@ def classic_preprocess(text: str, lang: str = None) -> str:
 
     Стоп-слова НЕ удаляем и НЕ лемматизируем намеренно: тексты короткие
     (медиана ~6 слов) и двуязычные, поэтому агрессивная чистка выбрасывает
-    полезный сигнал. Параметр lang оставлен для совместимости сигнатуры.
+    полезный сигнал (во фразе «is it raining» почти всё — «стоп-слова»).
+    Параметр lang оставлен для совместимости сигнатуры (в лёгком режиме не нужен).
     """
     return basic_clean(text).lower()
+    
