@@ -1,12 +1,12 @@
 """
-Этап 9 — Дашборд (Streamlit, облегчённый).
+Этап 9 — Дашборд (Streamlit, облегчённый + живая классификация).
 
 Запуск:  streamlit run app/real_time_dashboard.py
 
-Не требует torch/transformers: читает готовые артефакты из reports/
-  - performance_metrics.json  — метрики (accuracy, F1, скорость, по языкам),
-  - example_predictions.csv   — примеры обработки (категория, теги, язык).
-Живое тегирование — через spaCy, если он установлен (иначе раздел скрыт).
+Не требует torch/transformers. Компоненты подключаются, если доступны:
+  - метрики / примеры        — из reports/ (нужны только streamlit + pandas);
+  - живая классификация      — бейзлайн TF-IDF+LogReg (scikit-learn + .joblib);
+  - живое тегирование        — spaCy (+ модели en/ru).
 
 Показывает (по условию): результаты классификации, теги, метрики, языки.
 """
@@ -19,7 +19,7 @@ import pandas as pd
 import streamlit as st
 
 BASE = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(BASE))          # чтобы работали импорты models/ и utils/
+sys.path.insert(0, str(BASE))
 REPORTS = BASE / "reports"
 
 
@@ -35,9 +35,31 @@ def load_examples():
     return pd.read_csv(p) if p.exists() else None
 
 
+@st.cache_resource
+def load_baseline():
+    """Лёгкий классификатор (TF-IDF+LogReg). None, если нет sklearn или файла."""
+    try:
+        from models.text_classifier import BaselineClassifier, BASELINE_PATH
+        if not Path(BASELINE_PATH).exists():
+            return None
+        return BaselineClassifier().load()
+    except Exception:
+        return None
+
+
+@st.cache_resource
+def load_tagger():
+    """Тегировщик spaCy. Объект вернётся всегда, но методы упадут без spaCy."""
+    try:
+        from models.tagger import DocumentTagger
+        return DocumentTagger()
+    except Exception:
+        return None
+
+
 st.set_page_config(page_title="Document Categorization & Tagging", layout="wide")
 st.title("📄 Document Categorization & Tagging")
-st.caption("Классификация (DistilBERT) + тегирование (spaCy NER) · английский и русский")
+st.caption("Классификация (DistilBERT / бейзлайн) + тегирование (spaCy NER) · en/ru")
 
 metrics = load_metrics()
 examples = load_examples()
@@ -57,26 +79,35 @@ if metrics:
 else:
     st.info("Нет reports/performance_metrics.json")
 
-# ---------- Живое тегирование (spaCy, опционально) ----------
-st.header("Разметить свой текст")
-try:
-    from models.tagger import DocumentTagger
-    from utils.text_preprocessing import detect_language
-    if "tagger" not in st.session_state:
-        st.session_state.tagger = DocumentTagger()
+# ---------- Живая обработка: классификация + теги ----------
+st.header("Обработать свой текст")
+from utils.text_preprocessing import detect_language   # только регулярки, лёгкий
 
-    txt = st.text_area("Введите текст (en/ru)", height=100)
-    if st.button("Разметить") and txt.strip():
-        lang = detect_language(txt)
-        res = st.session_state.tagger.generate_tags(txt, lang=lang)
-        st.write(f"**Язык:** `{lang}`")
+txt = st.text_area("Введите текст (en/ru)", height=100)
+if st.button("Обработать") and txt.strip():
+    lang = detect_language(txt)
+    st.write(f"**Язык:** `{lang}`")
+
+    # --- классификация (бейзлайн) ---
+    clf = load_baseline()
+    category = None
+    if clf is not None:
+        category = clf.predict([txt])[0]
+        st.success(f"**Категория:** {category}")
+    else:
+        st.caption("Живая классификация недоступна: нужен baseline_tfidf_logreg.joblib "
+                   "в models/checkpoints/ и scikit-learn. (Категории — в примерах ниже.)")
+
+    # --- теги (spaCy), с учётом категории как контекста ---
+    tagger = load_tagger()
+    try:
+        res = tagger.generate_tags(txt, lang=lang, category=category)
         if res["entities"]:
             st.write("**Сущности:** " +
                      ", ".join(f'{e["text"]} ({e["type"]})' for e in res["entities"]))
         st.write("**Теги:** " + (", ".join(res["tags"]) if res["tags"] else "—"))
-        st.caption("Категорию присваивает DistilBERT (см. примеры ниже / прогон в Colab).")
-except Exception as e:
-    st.caption(f"Живое тегирование недоступно (нет spaCy): {e}")
+    except Exception:
+        st.caption("Живое тегирование недоступно (нет spaCy).")
 
 # ---------- Примеры обработки ----------
 if examples is not None:
@@ -86,7 +117,6 @@ if examples is not None:
     view = examples if pick == "все" else examples[examples["language"] == pick]
     st.dataframe(view, use_container_width=True, height=300)
 
-    # ---------- Распределения ----------
     st.header("Распределения")
     col1, col2 = st.columns(2)
     with col1:
@@ -96,5 +126,5 @@ if examples is not None:
         st.subheader("По языкам")
         st.bar_chart(examples["language"].value_counts())
 else:
-    st.info("Нет reports/example_predictions.csv — сгенерируй его в Colab (см. инструкцию).")
+    st.info("Нет reports/example_predictions.csv — сгенерируй его в Colab.")
     
